@@ -1,68 +1,18 @@
-// Explicit sprite/background asset loading and fallbacks. Every path below
-// is a contract with the art-direction stage: drop a PNG at that exact path
-// under public/ and the renderer switches from its placeholder shape to the
-// real sprite automatically. Nothing here requires the files to exist —
-// loadImage() resolves to null on a 404 so typecheck/build/tests never
-// depend on art being present.
-export type PlayerState =
-  | "idle"
-  | "advance"
-  | "retreat"
-  | "punch-left"
-  | "punch-right"
-  | "guard-charge"
-  | "guard-active"
-  | "hit"
-  | "win"
-  | "loss";
+// Runtime art contract. The generated fighters live in compact atlases so
+// every pose keeps one identity, material treatment and lighting direction.
+// Missing images resolve to null and the renderer retains geometric fallbacks.
 
-export type OpponentState =
-  | "idle"
-  | "telegraph"
-  | "lunge"
-  | "recoil"
-  | "open-left"
-  | "open-right"
-  | "hit"
-  | "win"
-  | "loss";
-
-export type ArenaLayer = "haze" | "skyline" | "midcity" | "rail" | "combat-plane" | "street";
-
-const PLAYER_STATES: readonly PlayerState[] = [
-  "idle",
-  "advance",
-  "retreat",
-  "punch-left",
-  "punch-right",
-  "guard-charge",
-  "guard-active",
-  "hit",
-  "win",
-  "loss",
-];
-
-const OPPONENT_STATES: readonly OpponentState[] = [
-  "idle",
-  "telegraph",
-  "lunge",
-  "recoil",
-  "open-left",
-  "open-right",
-  "hit",
-  "win",
-  "loss",
-];
-
-const ARENA_LAYERS: readonly ArenaLayer[] = ["haze", "skyline", "midcity", "rail", "combat-plane", "street"];
-
-const VISOR_FRACTURE_STAGES = 8;
+export interface AtlasAsset {
+  readonly image: HTMLImageElement | null;
+  readonly columns: number;
+  readonly rows: number;
+}
 
 export interface AssetSet {
-  readonly player: Readonly<Record<PlayerState, HTMLImageElement | null>>;
-  readonly opponent: Readonly<Record<OpponentState, HTMLImageElement | null>>;
-  readonly arena: Readonly<Record<ArenaLayer, HTMLImageElement | null>>;
-  readonly visorFractures: readonly (HTMLImageElement | null)[]; // index 0 = stage 1 .. index 7 = stage 8
+  readonly arena: HTMLImageElement | null;
+  readonly player: AtlasAsset;
+  readonly opponent: AtlasAsset;
+  readonly visorFractures: AtlasAsset;
 }
 
 function loadImage(path: string): Promise<HTMLImageElement | null> {
@@ -74,22 +24,18 @@ function loadImage(path: string): Promise<HTMLImageElement | null> {
   });
 }
 
-async function loadRecord<K extends string>(
-  keys: readonly K[],
-  pathFor: (key: K) => string,
-): Promise<Record<K, HTMLImageElement | null>> {
-  const entries = await Promise.all(keys.map(async (key) => [key, await loadImage(pathFor(key))] as const));
-  return Object.fromEntries(entries) as Record<K, HTMLImageElement | null>;
-}
-
 export async function loadAssetSet(): Promise<AssetSet> {
-  const [player, opponent, arena, visorFractures] = await Promise.all([
-    loadRecord(PLAYER_STATES, (state) => `./sprites/player-${state}.png`),
-    loadRecord(OPPONENT_STATES, (state) => `./sprites/opponent-${state}.png`),
-    loadRecord(ARENA_LAYERS, (layer) => `./arena/arena-${layer}.png`),
-    Promise.all(
-      Array.from({ length: VISOR_FRACTURE_STAGES }, (_, i) => loadImage(`./sprites/opponent-visor-${i + 1}.png`)),
-    ),
+  const [arena, player, opponent, visorFractures] = await Promise.all([
+    loadImage("./arena/arena-master.png"),
+    loadImage("./sprites/player-atlas.png"),
+    loadImage("./sprites/opponent-atlas.png"),
+    loadImage("./sprites/opponent-visor-atlas.png"),
   ]);
-  return { player, opponent, arena, visorFractures };
+
+  return {
+    arena,
+    player: { image: player, columns: 3, rows: 3 },
+    opponent: { image: opponent, columns: 3, rows: 3 },
+    visorFractures: { image: visorFractures, columns: 4, rows: 2 },
+  };
 }

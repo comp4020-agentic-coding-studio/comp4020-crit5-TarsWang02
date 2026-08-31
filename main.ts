@@ -3,8 +3,14 @@
 // here — this file only turns pose readings into FrameInput, steps
 // game-state.ts, and hands the result to renderer.ts each frame.
 import { loadAssetSet, type AssetSet } from "./src/assets.ts";
-import { unlockAudioContext } from "./src/audio.ts";
-import { createInitialGameState, stepGameState, type FrameInput, type GameState } from "./src/game-state.ts";
+import { playRoundEvent, unlockAudioContext } from "./src/audio.ts";
+import {
+  createInitialGameState,
+  stepGameState,
+  type FrameInput,
+  type GameState,
+  type RoundEvent,
+} from "./src/game-state.ts";
 import {
   createGuardTracker,
   createMovementTracker,
@@ -43,6 +49,10 @@ let trackingOk = false;
 let cameraStarted = false;
 let game: GameState = createInitialGameState();
 let assets: AssetSet | null = null;
+let visualPunch: Side | null = null;
+let visualPunchUntil = 0;
+let visualEvent: RoundEvent = null;
+let visualEventUntil = 0;
 
 void loadAssetSet().then((loaded) => {
   assets = loaded;
@@ -87,6 +97,8 @@ aperture.addEventListener("click", () => {
   }
   if (game.result !== null) {
     game = createInitialGameState();
+    visualPunch = null;
+    visualEvent = null;
     updateApertureVisibility();
   }
 });
@@ -114,6 +126,7 @@ function loop(now: number): void {
   let input: FrameInput = { advance: 0, guardActive: false, punches: [], trackingOk: false };
   let guardStrength = 0;
   let guardActive = false;
+  let advance = 0;
 
   if (trackingOk && latestPose) {
     const movementReading = movement.update(latestPose);
@@ -122,23 +135,40 @@ function loop(now: number): void {
     if (leftPunch.update(latestPose, now) === "strike") punches.push("left");
     if (rightPunch.update(latestPose, now) === "strike") punches.push("right");
     input = { advance: movementReading.advance, guardActive: guardReading.active, punches, trackingOk: true };
+    advance = movementReading.advance;
     guardActive = guardReading.active;
     guardStrength = guardReading.strength;
+    if (punches.length > 0) {
+      visualPunch = punches[0] ?? null;
+      visualPunchUntil = now + 170;
+    }
   }
 
   if (cameraStarted && game.result === null) {
     game = stepGameState(game, dt, input);
+    if (game.lastEvent) {
+      visualEvent = game.lastEvent;
+      visualEventUntil = now + (game.lastEvent === "guardMiss" || game.lastEvent === "counterLanded" ? 190 : 120);
+      playRoundEvent(game.lastEvent);
+    }
     updateApertureVisibility();
   }
+
+  if (now >= visualPunchUntil) visualPunch = null;
+  if (now >= visualEventUntil) visualEvent = null;
 
   if (ctx) {
     renderStage(ctx, canvas.width, canvas.height, {
       game,
       guardActive,
       guardStrength,
+      advance,
+      visualPunch,
+      visualEvent,
       leftGlove: toGloveVisual(latestPose?.leftWrist),
       rightGlove: toGloveVisual(latestPose?.rightWrist),
       assets,
+      nowMs: now,
     });
   }
 

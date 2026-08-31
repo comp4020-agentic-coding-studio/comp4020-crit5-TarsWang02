@@ -1,30 +1,52 @@
 :root {
   color-scheme: dark;
+  font-family: "SFMono-Regular", "Roboto Mono", "Noto Sans Mono", ui-monospace, monospace;
+  background: #030507;
+  color: #dcecf2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 48%, #0a151d 0, #030507 64%),
+    #030507;
 }
 
 body {
-  margin: 0;
-  background: #05070a;
-  color: #cfe8ff;
-  font-family: system-ui, sans-serif;
-  line-height: 1.6;
+  min-height: 100dvh;
 }
 
 header {
-  padding: 0.5rem 1rem;
+  position: fixed;
+  z-index: 4;
+  top: max(1rem, env(safe-area-inset-top));
+  left: max(1.1rem, env(safe-area-inset-left));
+  pointer-events: none;
 }
 
 header nav a {
-  color: #5be2ff;
+  color: rgba(226, 241, 246, 0.82);
   text-decoration: none;
+  font-size: clamp(0.68rem, 1.25vw, 0.86rem);
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 18px rgba(91, 226, 255, 0.25);
+  text-transform: uppercase;
 }
 
 main {
-  display: flex;
-  justify-content: center;
-  padding: 0 1rem 1rem;
+  display: grid;
+  width: 100vw;
+  min-height: 100dvh;
+  place-items: center;
 }
 
 .visually-hidden {
@@ -38,11 +60,30 @@ main {
 
 .stage {
   position: relative;
-  width: min(100%, 960px);
-  aspect-ratio: 16 / 9;
-  background: #0a0e14;
-  border-radius: 0.5rem;
+  width: min(100vw, calc(100dvh * 16 / 9));
+  height: min(100dvh, calc(100vw * 9 / 16));
   overflow: hidden;
+  background: #05070a;
+  box-shadow:
+    0 0 0 1px rgba(151, 197, 215, 0.08),
+    0 0 80px rgba(19, 58, 75, 0.24);
+  isolation: isolate;
+}
+
+.stage::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(219, 241, 248, 0.018) 0,
+    rgba(219, 241, 248, 0.018) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  content: "";
+  mix-blend-mode: screen;
 }
 
 .camera-feed {
@@ -51,29 +92,51 @@ main {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
   transform: scaleX(-1);
 }
 
 .diagnostic-canvas {
   position: absolute;
+  z-index: 1;
   inset: 0;
   width: 100%;
   height: 100%;
+  image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
 
 .aperture {
   position: absolute;
+  z-index: 3;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: 5.5rem;
-  height: 5.5rem;
+  width: clamp(4.6rem, 9vw, 6.4rem);
+  height: clamp(4.6rem, 9vw, 6.4rem);
+  padding: 0;
+  border: 1px solid rgba(91, 226, 255, 0.68);
   border-radius: 50%;
-  border: 2px solid #5be2ff;
-  background: rgba(5, 7, 10, 0.65);
+  outline: 1px solid rgba(225, 241, 247, 0.16);
+  outline-offset: 0.55rem;
+  background: rgba(3, 8, 12, 0.82);
+  box-shadow:
+    inset 0 0 30px rgba(91, 226, 255, 0.07),
+    0 0 28px rgba(91, 226, 255, 0.14);
   cursor: pointer;
-  transition: opacity 200ms ease;
+  transform: translate(-50%, -50%);
+  transition: border-color 150ms ease, box-shadow 150ms ease, opacity 180ms ease;
+}
+
+.aperture:hover,
+.aperture:focus-visible {
+  border-color: rgba(214, 247, 255, 0.95);
+  box-shadow:
+    inset 0 0 34px rgba(91, 226, 255, 0.12),
+    0 0 40px rgba(91, 226, 255, 0.24);
+}
+
+.aperture:focus-visible {
+  outline-color: #dff8ff;
 }
 
 .aperture[hidden] {
@@ -81,29 +144,46 @@ main {
 }
 
 .aperture:disabled {
-  opacity: 0.5;
-  cursor: default;
+  cursor: progress;
+  opacity: 0.52;
 }
 
 .aperture-ring {
   display: block;
-  width: 60%;
-  height: 60%;
-  margin: 20% auto;
+  width: 58%;
+  height: 58%;
+  margin: 21% auto;
+  border: 2px solid rgba(220, 244, 250, 0.82);
   border-radius: 50%;
-  border: 2px solid #cfe8ff;
+  box-shadow: 0 0 16px rgba(91, 226, 255, 0.28);
 }
 
 .camera-status {
   position: absolute;
-  bottom: 0.75rem;
-  left: 0.75rem;
-  right: 0.75rem;
-  margin: 0;
-  font-size: 0.85rem;
-  color: #ffb4b4;
-  text-align: center;
+  z-index: 3;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(0.85rem, env(safe-area-inset-bottom));
+  left: max(1rem, env(safe-area-inset-left));
   min-height: 1.2em;
+  margin: 0;
+  color: rgba(255, 177, 184, 0.8);
+  font-size: clamp(0.62rem, 1.35vw, 0.78rem);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-shadow: 0 0 12px #05070a;
+}
+
+@media (max-aspect-ratio: 9 / 10) {
+  .stage {
+    width: 100vw;
+    height: 100dvh;
+    box-shadow: none;
+  }
+
+  header {
+    top: max(0.8rem, env(safe-area-inset-top));
+    left: max(0.85rem, env(safe-area-inset-left));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

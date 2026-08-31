@@ -360,17 +360,25 @@ Claude does not need to fake finished art with enormous hand-written pixel
 arrays. Build an asset-driven renderer with clearly named placeholders, then
 replace them with approved generated or hand-edited assets.
 
-Expected asset groups:
+The approved generated runtime assets now are:
 
-- player robot sprite sheet: idle, advance, retreat, left punch, right punch,
-  guard charge, guard active, hit, win and loss;
-- opponent sprite sheet: idle, telegraph, lunge, recoil, open-left,
-  open-right, hit, win and loss;
-- eight opponent visor fracture states;
-- fixed arena layers: foreground wet street, combat plane, elevated rail,
-  middle city, distant skyline and haze;
-- rain, reflection, impact, shield and glove-overheat effects;
-- 1200×630 `public/card.png` matching the actual final art direction.
+- `public/sprites/player-atlas.png`: 3×3 atlas ordered idle, advance,
+  retreat, left punch, right punch, guard, hit, win and loss. Guard charge and
+  guard active deliberately share the same readable pose while the live shield
+  effect communicates charge.
+- `public/sprites/opponent-atlas.png`: 3×3 atlas ordered idle, telegraph,
+  lunge, recoil, open-left, open-right, hit, win and loss.
+- `public/sprites/opponent-visor-atlas.png`: 4×2 progressive fracture atlas,
+  stage one through eight in reading order.
+- `public/arena/arena-master.png`: approved empty 16:9 rain-soaked street plate.
+  Canvas supplies moving rain, restrained haze, reflections, impact light and
+  vignette above it; do not split it into arbitrary layers merely to satisfy an
+  older placeholder contract.
+- `public/card.png`: final 1200×630 share card using the same art direction.
+
+Do not regenerate or replace these approved assets without owner direction.
+`src/assets.ts` is the canonical atlas contract and `src/renderer.ts` owns crop
+coordinates, action mapping and responsive placement.
 
 Use source assets only when their licence and provenance are recorded. Do not
 copy imagery from the visual references.
