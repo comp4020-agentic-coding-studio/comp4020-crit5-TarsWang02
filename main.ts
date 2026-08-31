@@ -2,6 +2,7 @@
 // the pure round reducer and the placeholder renderer. No game rules live
 // here — this file only turns pose readings into FrameInput, steps
 // game-state.ts, and hands the result to renderer.ts each frame.
+import { loadAssetSet, type AssetSet } from "./src/assets.ts";
 import { unlockAudioContext } from "./src/audio.ts";
 import { createInitialGameState, stepGameState, type FrameInput, type GameState } from "./src/game-state.ts";
 import {
@@ -41,6 +42,11 @@ let latestPose: PoseSample | null = null;
 let trackingOk = false;
 let cameraStarted = false;
 let game: GameState = createInitialGameState();
+let assets: AssetSet | null = null;
+
+void loadAssetSet().then((loaded) => {
+  assets = loaded;
+});
 
 function onStateChange(state: CameraState): void {
   status.textContent = STATUS_COPY[state];
@@ -132,6 +138,7 @@ function loop(now: number): void {
       guardStrength,
       leftGlove: toGloveVisual(latestPose?.leftWrist),
       rightGlove: toGloveVisual(latestPose?.rightWrist),
+      assets,
     });
   }
 

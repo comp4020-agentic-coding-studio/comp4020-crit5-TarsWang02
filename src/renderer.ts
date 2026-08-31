@@ -1,7 +1,9 @@
-// Responsive pixel-stage rendering. Placeholder shapes only — the
-// art-direction stage swaps these for approved sprite sheets without
-// changing this module's inputs (GameState + glove/guard readings) or the
-// tested contracts in game-state.ts / pose-rules.ts.
+// Responsive pixel-stage rendering. Draws real sprites/arena layers from
+// assets.ts when they've loaded, and falls back to placeholder shapes
+// otherwise — the art-direction stage supplies PNGs at the paths named in
+// assets.ts and this module picks them up automatically, with no change to
+// GameState or pose-rules' tested contracts.
+import type { AssetSet, ArenaLayer, OpponentState, PlayerState } from "./assets.ts";
 import { LUNGE_IMPACT_WINDOW_MS, type GameState, type RoundResult } from "./game-state.ts";
 import type { Side } from "./types.ts";
 
@@ -17,6 +19,7 @@ export interface RenderState {
   readonly guardStrength: number; // 0..1
   readonly leftGlove: GloveVisual | null;
   readonly rightGlove: GloveVisual | null;
+  readonly assets: AssetSet | null;
 }
 
 const PLAYER_ENGAGED_X = 0.58;
@@ -25,6 +28,9 @@ const OPPONENT_MARK_X = 0.78;
 const OPPONENT_LUNGE_X = 0.5;
 const FIGHTER_Y = 0.62;
 const RECOIL_MS = 220;
+const FIGHTER_SPRITE_HEIGHT_FRACTION = 0.46;
+
+const ARENA_DRAW_ORDER: readonly ArenaLayer[] = ["haze", "skyline", "midcity", "rail", "combat-plane", "street"];
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -36,7 +42,40 @@ function lungeProgress(game: GameState): number {
   return 0;
 }
 
-function drawArena(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+function pickPlayerState(game: GameState, guardActive: boolean): PlayerState {
+  if (game.result === "win") return "win";
+  if (game.result === "loss") return "loss";
+  if (game.lastEvent === "guardMiss") return "hit";
+  if (guardActive) return "guard-active";
+  return "idle";
+}
+
+function pickOpponentState(game: GameState): OpponentState {
+  if (game.result === "win") return "loss";
+  if (game.result === "loss") return "win";
+  if (game.lastEvent === "counterLanded") return "hit";
+  switch (game.phase) {
+    case "telegraph":
+      return "telegraph";
+    case "lunge":
+      return "lunge";
+    case "opening":
+      return game.openSide === "left" ? "open-left" : "open-right";
+    case "settle":
+      return game.guardedDuringLunge ? "recoil" : "idle";
+    default:
+      return "idle";
+  }
+}
+
+function drawArenaLayers(ctx: CanvasRenderingContext2D, width: number, height: number, assets: AssetSet): void {
+  for (const layer of ARENA_DRAW_ORDER) {
+    const image = assets.arena[layer];
+    if (image) ctx.drawImage(image, 0, 0, width, height);
+  }
+}
+
+function drawArenaPlaceholder(ctx: CanvasRenderingContext2D, width: number, height: number): void {
   ctx.strokeStyle = "rgba(207, 232, 255, 0.15)";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -51,7 +90,20 @@ function drawArena(ctx: CanvasRenderingContext2D, width: number, height: number)
   ctx.stroke();
 }
 
-function drawFighter(
+function drawFighterSprite(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  stageHeight: number,
+): void {
+  const targetHeight = stageHeight * FIGHTER_SPRITE_HEIGHT_FRACTION;
+  const scale = targetHeight / image.naturalHeight;
+  const targetWidth = image.naturalWidth * scale;
+  ctx.drawImage(image, x - targetWidth / 2, y - targetHeight * 0.62, targetWidth, targetHeight);
+}
+
+function drawFighterPlaceholder(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -147,19 +199,32 @@ export function renderStage(
   height: number,
   state: RenderState,
 ): void {
-  const { game } = state;
+  const { game, assets } = state;
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, width, height);
-  drawArena(ctx, width, height);
+
+  const arenaLoaded = assets !== null && ARENA_DRAW_ORDER.some((layer) => assets.arena[layer]);
+  if (assets && arenaLoaded) drawArenaLayers(ctx, width, height, assets);
+  else drawArenaPlaceholder(ctx, width, height);
 
   const playerX = lerp(PLAYER_ENGAGED_X, PLAYER_RETREAT_X, game.playerPosition) * width;
   const opponentX = lerp(OPPONENT_MARK_X, OPPONENT_LUNGE_X, lungeProgress(game)) * width;
   const y = FIGHTER_Y * height;
 
-  drawFighter(ctx, playerX, y, "#cfe8ff", height, game.lastEvent === "guardMiss");
-  drawFighter(ctx, opponentX, y, "#c85b5b", height, game.lastEvent === "counterLanded");
+  const playerSprite = assets?.player[pickPlayerState(game, state.guardActive)] ?? null;
+  if (playerSprite) drawFighterSprite(ctx, playerSprite, playerX, y, height);
+  else drawFighterPlaceholder(ctx, playerX, y, "#cfe8ff", height, game.lastEvent === "guardMiss");
 
-  if (game.phase === "opening" && game.openSide) {
-    drawOpening(ctx, opponentX, y, game.openSide, width);
+  const opponentSprite = assets?.opponent[pickOpponentState(game)] ?? null;
+  if (opponentSprite) {
+    drawFighterSprite(ctx, opponentSprite, opponentX, y, height);
+    if (game.counters > 0) {
+      const visor = assets?.visorFractures[game.counters - 1] ?? null;
+      if (visor) drawFighterSprite(ctx, visor, opponentX, y, height);
+    }
+  } else {
+    drawFighterPlaceholder(ctx, opponentX, y, "#c85b5b", height, game.lastEvent === "counterLanded");
+    if (game.phase === "opening" && game.openSide) drawOpening(ctx, opponentX, y, game.openSide, width);
   }
 
   drawGuardShield(ctx, state.leftGlove, state.guardActive, state.guardStrength, width, height);
