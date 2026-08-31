@@ -1,14 +1,17 @@
-// Composition root: wires the camera pipeline, pose recognition trackers and
-// a minimal landmark/glove diagnostic. The full playable game (renderer,
-// game-state loop, audio cues) lands in the playable-commit stage; this file
-// only proves the camera + recognition pipeline end-to-end.
+// Composition root: wires the camera pipeline, pose recognition trackers,
+// the pure round reducer and the placeholder renderer. No game rules live
+// here — this file only turns pose readings into FrameInput, steps
+// game-state.ts, and hands the result to renderer.ts each frame.
 import { unlockAudioContext } from "./src/audio.ts";
+import { createInitialGameState, stepGameState, type FrameInput, type GameState } from "./src/game-state.ts";
 import {
   createGuardTracker,
   createMovementTracker,
   createPunchTracker,
   type PoseSample,
 } from "./src/pose-rules.ts";
+import { renderStage, type GloveVisual } from "./src/renderer.ts";
+import type { Side } from "./src/types.ts";
 import { createVisionPipeline, type CameraState } from "./src/vision.ts";
 
 const video = document.getElementById("camera-feed") as HTMLVideoElement;
@@ -35,14 +38,14 @@ const leftPunch = createPunchTracker("left");
 const rightPunch = createPunchTracker("right");
 
 let latestPose: PoseSample | null = null;
+let trackingOk = false;
+let cameraStarted = false;
+let game: GameState = createInitialGameState();
 
 function onStateChange(state: CameraState): void {
   status.textContent = STATUS_COPY[state];
-  if (state === "tracking") {
-    aperture.hidden = true;
-  } else if (state !== "lost") {
-    aperture.hidden = false;
-  }
+  trackingOk = state === "tracking";
+  updateApertureVisibility();
 }
 
 function onPose(sample: PoseSample | null): void {
@@ -51,12 +54,35 @@ function onPose(sample: PoseSample | null): void {
 
 const pipeline = createVisionPipeline({ video, onStateChange, onPose });
 
+function updateApertureVisibility(): void {
+  if (!cameraStarted) {
+    aperture.hidden = false;
+    aperture.setAttribute("aria-label", "Activate camera and begin");
+    return;
+  }
+  if (game.result !== null) {
+    aperture.hidden = false;
+    aperture.setAttribute("aria-label", "Play again");
+    return;
+  }
+  aperture.hidden = true;
+}
+
 aperture.addEventListener("click", () => {
-  unlockAudioContext();
-  aperture.disabled = true;
-  void pipeline.start().finally(() => {
-    aperture.disabled = false;
-  });
+  if (!cameraStarted) {
+    cameraStarted = true;
+    unlockAudioContext();
+    aperture.disabled = true;
+    void pipeline.start().finally(() => {
+      aperture.disabled = false;
+      updateApertureVisibility();
+    });
+    return;
+  }
+  if (game.result !== null) {
+    game = createInitialGameState();
+    updateApertureVisibility();
+  }
 });
 
 function resizeCanvas(): void {
@@ -68,32 +94,48 @@ function resizeCanvas(): void {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-function drawGlove(point: { x: number; y: number; visibility: number }, active: boolean): void {
-  if (!ctx) return;
-  const x = point.x * canvas.width;
-  const y = point.y * canvas.height;
-  const radius = Math.max(canvas.width, canvas.height) * 0.02;
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = active ? "#5be2ff" : point.visibility < 0.5 ? "rgba(207, 232, 255, 0.3)" : "#cfe8ff";
-  if (point.visibility < 0.5) ctx.setLineDash([3, 4]);
-  else ctx.setLineDash([]);
-  ctx.stroke();
+function toGloveVisual(point: PoseSample["leftWrist"] | undefined): GloveVisual | null {
+  if (!point) return null;
+  return { x: point.x, y: point.y, visible: point.visibility >= 0.5 };
 }
 
-function draw(): void {
-  if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (latestPose) {
-    const now = performance.now();
-    movement.update(latestPose);
+let lastFrameTime = performance.now();
+
+function loop(now: number): void {
+  const dt = Math.min(100, now - lastFrameTime);
+  lastFrameTime = now;
+
+  let input: FrameInput = { advance: 0, guardActive: false, punches: [], trackingOk: false };
+  let guardStrength = 0;
+  let guardActive = false;
+
+  if (trackingOk && latestPose) {
+    const movementReading = movement.update(latestPose);
     const guardReading = guard.update(latestPose, now);
-    leftPunch.update(latestPose, now);
-    rightPunch.update(latestPose, now);
-    drawGlove(latestPose.leftWrist, guardReading.active);
-    drawGlove(latestPose.rightWrist, guardReading.active);
+    const punches: Side[] = [];
+    if (leftPunch.update(latestPose, now) === "strike") punches.push("left");
+    if (rightPunch.update(latestPose, now) === "strike") punches.push("right");
+    input = { advance: movementReading.advance, guardActive: guardReading.active, punches, trackingOk: true };
+    guardActive = guardReading.active;
+    guardStrength = guardReading.strength;
   }
-  requestAnimationFrame(draw);
+
+  if (cameraStarted && game.result === null) {
+    game = stepGameState(game, dt, input);
+    updateApertureVisibility();
+  }
+
+  if (ctx) {
+    renderStage(ctx, canvas.width, canvas.height, {
+      game,
+      guardActive,
+      guardStrength,
+      leftGlove: toGloveVisual(latestPose?.leftWrist),
+      rightGlove: toGloveVisual(latestPose?.rightWrist),
+    });
+  }
+
+  requestAnimationFrame(loop);
 }
 
-requestAnimationFrame(draw);
+requestAnimationFrame(loop);

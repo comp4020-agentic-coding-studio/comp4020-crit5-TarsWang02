@@ -11,7 +11,7 @@ const SETTLE_DURATION_MS = 500;
 const BASE_TELEGRAPH_DURATION_MS = 1100;
 const MIN_TELEGRAPH_DURATION_MS = 550;
 const TELEGRAPH_STEP_MS = 60;
-const LUNGE_IMPACT_WINDOW_MS = 260;
+export const LUNGE_IMPACT_WINDOW_MS = 260;
 const BASE_OPENING_DURATION_MS = 1500;
 const MIN_OPENING_DURATION_MS = 650;
 const OPENING_STEP_MS = 85;
@@ -23,6 +23,7 @@ const PUNCH_RANGE_MAX = 0.5;
 const MOVE_SPEED_PER_MS = 0.0006;
 
 export type RoundPhase = "settle" | "telegraph" | "lunge" | "opening" | "roundOver";
+export type RoundResult = "win" | "loss";
 
 export type RoundEvent =
   | "guardSuccess"
@@ -46,7 +47,7 @@ export interface GameState {
   readonly playerHits: number;
   readonly counters: number;
   readonly openSide: Side | null;
-  readonly result: "win" | "loss" | null;
+  readonly result: RoundResult | null;
   readonly trackingPaused: boolean;
   readonly lastEvent: RoundEvent;
 }
