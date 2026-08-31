@@ -1,16 +1,112 @@
+:root {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
-  padding: 2rem;
+  background: #05070a;
+  color: #cfe8ff;
   font-family: system-ui, sans-serif;
   line-height: 1.6;
-  color: #1a1a1a;
+}
+
+header {
+  padding: 0.5rem 1rem;
+}
+
+header nav a {
+  color: #5be2ff;
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: 0.05em;
 }
 
 main {
-  max-width: 40rem;
-  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem 1rem;
 }
 
-a {
-  color: #0b5fff;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.stage {
+  position: relative;
+  width: min(100%, 960px);
+  aspect-ratio: 16 / 9;
+  background: #0a0e14;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.camera-feed {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.diagnostic-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.aperture {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 50%;
+  border: 2px solid #5be2ff;
+  background: rgba(5, 7, 10, 0.65);
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.aperture[hidden] {
+  display: none;
+}
+
+.aperture:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.aperture-ring {
+  display: block;
+  width: 60%;
+  height: 60%;
+  margin: 20% auto;
+  border-radius: 50%;
+  border: 2px solid #cfe8ff;
+}
+
+.camera-status {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: #ffb4b4;
+  text-align: center;
+  min-height: 1.2em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aperture {
+    transition: none;
+  }
 }
