@@ -20,7 +20,7 @@ const OPENING_STEP_MS = 80;
 // retreated to the rear boundary. Counters only land at or inside this
 // position, so retreating to stall the clock costs the ability to score.
 export const PUNCH_RANGE_MAX = 0.5;
-const MOVE_SPEED_PER_MS = 0.00045;
+const MOVE_SPEED_PER_MS = 0.0007;
 
 export type RoundPhase = "settle" | "telegraph" | "lunge" | "opening" | "roundOver";
 export type RoundResult = "win" | "loss";
