@@ -120,6 +120,11 @@ export function stepGameState(state: GameState, dt: number, input: FrameInput): 
       next = { ...next, lastEvent: "punchRejectedGuarded" };
     } else if (next.playerPosition > PUNCH_RANGE_MAX) {
       next = { ...next, lastEvent: "punchRejectedOutOfRange" };
+    } else if (input.punches.length > 1) {
+      // Throwing both hands in the same tick is hedging, not reading the
+      // opening — it must not guarantee a match regardless of which side
+      // was actually open.
+      next = { ...next, lastEvent: "punchRejectedWrongSide" };
     } else {
       const matching = input.punches.find((side) => side === next.openSide);
       if (!matching) {
