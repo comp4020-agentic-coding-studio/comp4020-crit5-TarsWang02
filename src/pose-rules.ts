@@ -79,8 +79,8 @@ export function toPlayerLocalPoint(sample: PoseSample, landmark: LandmarkPoint):
 
 // --- Movement -------------------------------------------------------------
 
-const MOVEMENT_DEAD_ZONE = 0.1; // shoulder widths
-const MOVEMENT_CLAMP = 0.4; // shoulder widths
+const MOVEMENT_DEAD_ZONE = 0.06; // shoulder widths
+const MOVEMENT_CLAMP = 0.22; // shoulder widths
 const TORSO_SMOOTHING_MS = 150;
 const IDLE_RECENTER_RATE = 0.02; // fraction of drift absorbed per idle update
 
