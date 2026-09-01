@@ -2,7 +2,15 @@
 // character identity; rain, haze, shield, telegraphs and impact light remain
 // live Canvas effects so feedback can react within one frame.
 import type { AssetSet, AtlasAsset } from "./assets.ts";
-import { LUNGE_IMPACT_WINDOW_MS, type GameState, type RoundEvent, type RoundResult } from "./game-state.ts";
+import {
+  COUNTERS_TO_WIN,
+  HITS_TO_LOSE,
+  LUNGE_IMPACT_WINDOW_MS,
+  PUNCH_RANGE_MAX,
+  type GameState,
+  type RoundEvent,
+  type RoundResult,
+} from "./game-state.ts";
 import type { Side } from "./types.ts";
 
 export interface GloveVisual {
@@ -188,18 +196,16 @@ function drawAtlasFrame(
 ): boolean {
   const image = atlas?.image;
   if (!image) return false;
-  const cellWidth = image.naturalWidth / atlas.columns;
-  const cellHeight = image.naturalHeight / atlas.rows;
-  const column = frame % atlas.columns;
-  const row = Math.floor(frame / atlas.columns);
+  const source = atlas.frames[frame];
+  if (!source) return false;
   const targetHeight = stageHeight * targetCellHeightFraction;
-  const targetWidth = targetHeight * (cellWidth / cellHeight);
+  const targetWidth = targetHeight * (source.width / source.height);
   ctx.drawImage(
     image,
-    column * cellWidth,
-    row * cellHeight,
-    cellWidth,
-    cellHeight,
+    source.x,
+    source.y,
+    source.width,
+    source.height,
     x - targetWidth / 2,
     y - targetHeight * 0.64,
     targetWidth,
@@ -356,12 +362,82 @@ function drawImpactLight(ctx: CanvasRenderingContext2D, width: number, height: n
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   ctx.fillStyle = positive
-    ? "rgba(132, 226, 255, 0.11)"
+    ? "rgba(132, 226, 255, 0.18)"
     : rejected
       ? "rgba(255, 133, 79, 0.07)"
-      : "rgba(255, 46, 66, 0.12)";
+      : "rgba(255, 46, 66, 0.2)";
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
+}
+
+function drawImpactBurst(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  height: number,
+  event: RoundEvent,
+  nowMs: number,
+): void {
+  if (!event || event.startsWith("punchRejected")) return;
+  const positive = event === "guardSuccess" || event === "counterLanded" || event === "roundWin";
+  const color = positive ? "132, 226, 255" : "255, 67, 82";
+  const radius = height * (event === "counterLanded" ? 0.13 : 0.09);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.translate(x, y);
+  ctx.rotate((nowMs % 1000) * 0.0004);
+  ctx.strokeStyle = `rgba(${color}, 0.82)`;
+  ctx.lineWidth = Math.max(2, height * 0.004);
+  for (let index = 0; index < 12; index += 1) {
+    const angle = (Math.PI * 2 * index) / 12;
+    const inner = radius * (0.18 + (index % 3) * 0.035);
+    const outer = radius * (0.62 + (index % 4) * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+    ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+    ctx.stroke();
+  }
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  glow.addColorStop(0, `rgba(${color}, 0.5)`);
+  glow.addColorStop(0.28, `rgba(${color}, 0.16)`);
+  glow.addColorStop(1, `rgba(${color}, 0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCombatCallout(ctx: CanvasRenderingContext2D, width: number, height: number, event: RoundEvent): void {
+  if (!event || event === "roundWin" || event === "roundLoss") return;
+  const copy: Record<Exclude<RoundEvent, null | "roundWin" | "roundLoss">, string> = {
+    guardSuccess: "BLOCK",
+    guardMiss: "ARMOUR HIT",
+    counterLanded: "COUNTER +1",
+    punchRejectedGuarded: "GUARDED",
+    punchRejectedWrongSide: "WRONG SIDE",
+    punchRejectedOutOfRange: "OUT OF RANGE",
+  };
+  const positive = event === "guardSuccess" || event === "counterLanded";
+  const rejected = event.startsWith("punchRejected");
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${Math.max(12, Math.round(height * 0.025))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  ctx.letterSpacing = `${height * 0.004}px`;
+  ctx.fillStyle = positive ? "#c9f5ff" : rejected ? "#ffb17f" : "#ff6678";
+  ctx.shadowColor = positive ? "#5be2ff" : "#c61432";
+  ctx.shadowBlur = height * 0.025;
+  ctx.fillText(copy[event], width / 2, height * 0.205);
+  ctx.restore();
+}
+
+function phaseCopy(game: GameState): string {
+  if (!game.calibrated && game.phase !== "opening") return "SYNC · GUARD THE IMPACT";
+  if (game.phase === "telegraph") return "READ ATTACK";
+  if (game.phase === "lunge") return "GUARD";
+  if (game.phase === "opening" && game.openSide) return `${game.openSide.toUpperCase()} COUNTER`;
+  return "HOLD RANGE";
 }
 
 function drawHud(ctx: CanvasRenderingContext2D, width: number, height: number, game: GameState): void {
@@ -375,6 +451,35 @@ function drawHud(ctx: CanvasRenderingContext2D, width: number, height: number, g
   ctx.shadowBlur = height * 0.015;
   ctx.fillText(String(seconds).padStart(2, "0"), width / 2, height * 0.075);
   ctx.shadowBlur = 0;
+
+  ctx.font = `600 ${Math.max(10, Math.round(height * 0.018))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  ctx.letterSpacing = `${Math.max(1, height * 0.0025)}px`;
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(204, 238, 248, 0.8)";
+  ctx.fillText(`COUNTER ${game.counters}/${COUNTERS_TO_WIN}`, width * 0.055, height * 0.075);
+  ctx.textAlign = "right";
+  ctx.fillStyle = game.playerHits > 1 ? "rgba(255, 93, 108, 0.9)" : "rgba(224, 239, 245, 0.78)";
+  ctx.fillText(`ARMOUR ${HITS_TO_LOSE - game.playerHits}/${HITS_TO_LOSE}`, width * 0.945, height * 0.075);
+
+  ctx.textAlign = "center";
+  ctx.font = `600 ${Math.max(10, Math.round(height * 0.017))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  ctx.fillStyle = game.phase === "lunge" ? "rgba(255, 112, 124, 0.95)" : "rgba(209, 239, 247, 0.76)";
+  ctx.fillText(phaseCopy(game), width / 2, height * 0.135);
+
+  const railLeft = width * 0.38;
+  const railRight = width * 0.62;
+  const railY = height * 0.9;
+  ctx.strokeStyle = "rgba(186, 218, 229, 0.24)";
+  ctx.lineWidth = Math.max(1, height * 0.002);
+  ctx.beginPath();
+  ctx.moveTo(railLeft, railY);
+  ctx.lineTo(railRight, railY);
+  ctx.stroke();
+  const markerX = lerp(railLeft, railRight, game.playerPosition);
+  ctx.fillStyle = game.playerPosition <= PUNCH_RANGE_MAX ? "#8feaff" : "#ff7a84";
+  ctx.fillRect(markerX - height * 0.004, railY - height * 0.008, height * 0.008, height * 0.016);
+  ctx.font = `500 ${Math.max(9, Math.round(height * 0.014))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  ctx.fillText(game.playerPosition <= PUNCH_RANGE_MAX ? "RANGE LOCK" : "CLOSE DISTANCE", width / 2, railY - height * 0.026);
 
   // Player health is expressed as frame-edge fractures rather than a bar.
   ctx.strokeStyle = "rgba(255, 53, 73, 0.72)";
@@ -409,6 +514,11 @@ function drawResult(ctx: CanvasRenderingContext2D, width: number, height: number
   ctx.shadowColor = result === "win" ? "#5be2ff" : "#c61432";
   ctx.shadowBlur = height * 0.045;
   ctx.fillText(result === "win" ? "COUNTERED" : "SHUT DOWN", width / 2, height * 0.42);
+  ctx.shadowBlur = 0;
+  ctx.font = `600 ${Math.max(10, Math.round(height * 0.018))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  ctx.letterSpacing = `${height * 0.004}px`;
+  ctx.fillStyle = "rgba(222, 239, 245, 0.76)";
+  ctx.fillText("ACTIVATE CORE TO RESTART", width / 2, height * 0.55);
   ctx.restore();
 }
 
@@ -433,6 +543,12 @@ export function renderStage(
   const playerX = lerp(playerEngagedX, playerRetreatX, game.playerPosition) * width;
   const opponentX = lerp(opponentMarkX, opponentLungeX, lungeProgress(game)) * width;
   const fighterY = FIGHTER_Y * height;
+
+  const shakeEvent = state.visualEvent === "counterLanded" || state.visualEvent === "guardMiss";
+  const shakeX = shakeEvent ? Math.sin(state.nowMs * 1.73) * height * 0.008 : 0;
+  const shakeY = shakeEvent ? Math.cos(state.nowMs * 1.31) * height * 0.004 : 0;
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
 
   drawGroundShadow(ctx, playerX, width, height, 0.8);
   drawGroundShadow(ctx, opponentX, width, height, 0.92);
@@ -468,8 +584,12 @@ export function renderStage(
 
   const playerAnchor = playerUpperBodyAnchor(playerX, fighterY, height, portrait);
   drawGuardShield(ctx, state.leftGlove, state.rightGlove, state.guardActive, clamp01(state.guardStrength), playerAnchor, width, height);
+  const impactX = state.visualEvent === "guardMiss" ? playerX : state.visualEvent === "guardSuccess" ? (playerX + opponentX) / 2 : opponentX;
+  drawImpactBurst(ctx, impactX, fighterY - height * 0.15, height, state.visualEvent, state.nowMs);
+  ctx.restore();
   drawRain(ctx, width, height, state.nowMs);
   drawImpactLight(ctx, width, height, state.visualEvent);
+  drawCombatCallout(ctx, width, height, state.visualEvent);
   drawHud(ctx, width, height, game);
   if (game.result) drawResult(ctx, width, height, game.result);
 }

@@ -402,6 +402,15 @@ The published spec requires at least one focused test; these additional tests
 are valuable because they protect fairness. Tests do not prove that camera
 recognition feels fair. Real play is mandatory.
 
+### Camera-free diagnostic mode
+
+`?simulate=1` is a local/manual diagnostic route for exercising the same
+round reducer, renderer and audio graph when a webcam is unavailable. It must
+never replace or be presented as proof of the required real-camera pass. In
+this route A/D controls range, J/K emits left/right punches, Space emits one
+700 ms guard pulse, and R restarts. Keep this query-gated; the default
+experience must remain camera-first.
+
 ## Manual verification matrix
 
 Before calling the game finished, inspect and play the built output, not just

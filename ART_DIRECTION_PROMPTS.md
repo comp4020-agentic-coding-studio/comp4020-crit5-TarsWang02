@@ -48,7 +48,9 @@ removed only that checkerboard and preserved the nine figures as real alpha.
 
 ## Opponent atlas
 
-Path: `public/sprites/opponent-atlas.png`
+Original path: `public/sprites/opponent-atlas.png`
+
+Corrected runtime path: `public/sprites/opponent-atlas-v3.png`
 
 Prompt:
 
@@ -62,6 +64,23 @@ Prompt:
 
 The initial generation drew a checkerboard. A background-extraction pass
 removed only that checkerboard and preserved the nine figures as real alpha.
+
+On 2026-09-01 the runtime atlas was regenerated after play testing exposed
+pose pixels crossing cell boundaries. The corrective built-in ImageGen prompt
+was:
+
+> Rebuild the referenced enemy robot sprite atlas as a clean production-safe
+> 3-column by 3-row atlas with a genuinely transparent alpha background.
+> Preserve the same restrained dark-iron humanoid boxing robot, red visor,
+> proportions, HD pixel-art treatment and nine actions in the same reading
+> order. Put exactly one complete robot in each equal cell, aligned to a
+> consistent ground line and scale, with at least 10% transparent safety
+> padding on all sides. No overlap, crossed cell boundaries, floor, vignette,
+> grid, labels, detached fists, duplicated limbs, weapons or giant-mech parts.
+
+A final background-extraction pass removed every backdrop and vignette pixel
+while preserving the nine robots exactly, so runtime connected-component
+bounds can discard any small neighbouring fragment that crosses a cell edge.
 
 ## Visor fracture atlas
 

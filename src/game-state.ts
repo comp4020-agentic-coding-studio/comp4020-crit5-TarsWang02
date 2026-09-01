@@ -7,20 +7,20 @@ export const ROUND_DURATION_MS = 90_000;
 export const HITS_TO_LOSE = 3;
 export const COUNTERS_TO_WIN = 8;
 
-const SETTLE_DURATION_MS = 500;
-const BASE_TELEGRAPH_DURATION_MS = 1100;
+const SETTLE_DURATION_MS = 650;
+const BASE_TELEGRAPH_DURATION_MS = 1050;
 const MIN_TELEGRAPH_DURATION_MS = 550;
 const TELEGRAPH_STEP_MS = 60;
-export const LUNGE_IMPACT_WINDOW_MS = 260;
-const BASE_OPENING_DURATION_MS = 1500;
-const MIN_OPENING_DURATION_MS = 650;
-const OPENING_STEP_MS = 85;
+export const LUNGE_IMPACT_WINDOW_MS = 340;
+const BASE_OPENING_DURATION_MS = 1700;
+const MIN_OPENING_DURATION_MS = 800;
+const OPENING_STEP_MS = 80;
 
 // Player world position: 0 = fully engaged at the front boundary, 1 = fully
 // retreated to the rear boundary. Counters only land at or inside this
 // position, so retreating to stall the clock costs the ability to score.
-const PUNCH_RANGE_MAX = 0.5;
-const MOVE_SPEED_PER_MS = 0.0006;
+export const PUNCH_RANGE_MAX = 0.5;
+const MOVE_SPEED_PER_MS = 0.00045;
 
 export type RoundPhase = "settle" | "telegraph" | "lunge" | "opening" | "roundOver";
 export type RoundResult = "win" | "loss";
@@ -67,7 +67,7 @@ export function createInitialGameState(): GameState {
     exchangeIndex: 0,
     phaseElapsedMs: 0,
     guardedDuringLunge: false,
-    playerPosition: 0.5,
+    playerPosition: 0.4,
     playerHits: 0,
     counters: 0,
     openSide: null,

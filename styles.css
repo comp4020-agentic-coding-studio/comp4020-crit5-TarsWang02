@@ -173,6 +173,13 @@ main {
   text-shadow: 0 0 12px #05070a;
 }
 
+.camera-status.simulation-status {
+  color: rgba(163, 235, 255, 0.88);
+  text-shadow:
+    0 0 12px #05070a,
+    0 0 16px rgba(91, 226, 255, 0.22);
+}
+
 @media (max-aspect-ratio: 9 / 10) {
   .stage {
     width: 100vw;
