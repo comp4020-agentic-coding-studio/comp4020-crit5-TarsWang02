@@ -475,7 +475,10 @@ function drawHud(ctx: CanvasRenderingContext2D, width: number, height: number, g
   ctx.moveTo(railLeft, railY);
   ctx.lineTo(railRight, railY);
   ctx.stroke();
-  const markerX = lerp(railLeft, railRight, game.playerPosition);
+  // playerPosition: 0 = engaged (right, matching the fighter sprite's own
+  // advance direction), 1 = retreated (left) — so the low end of the lerp
+  // range is railRight, not railLeft.
+  const markerX = lerp(railRight, railLeft, game.playerPosition);
   ctx.fillStyle = game.playerPosition <= PUNCH_RANGE_MAX ? "#8feaff" : "#ff7a84";
   ctx.fillRect(markerX - height * 0.004, railY - height * 0.008, height * 0.008, height * 0.016);
   ctx.font = `500 ${Math.max(9, Math.round(height * 0.014))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
