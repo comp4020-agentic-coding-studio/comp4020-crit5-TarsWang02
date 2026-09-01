@@ -15,6 +15,7 @@ import {
   createGuardTracker,
   createMovementTracker,
   createPunchTracker,
+  toPlayerLocalPoint,
   type PoseSample,
 } from "./src/pose-rules.ts";
 import { renderStage, type GloveVisual } from "./src/renderer.ts";
@@ -112,9 +113,10 @@ function resizeCanvas(): void {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-function toGloveVisual(point: PoseSample["leftWrist"] | undefined): GloveVisual | null {
-  if (!point) return null;
-  return { x: point.x, y: point.y, visible: point.visibility >= 0.5 };
+function toGloveVisual(sample: PoseSample | null, point: PoseSample["leftWrist"] | undefined): GloveVisual | null {
+  if (!sample || !point) return null;
+  const local = toPlayerLocalPoint(sample, point);
+  return { offsetX: local.offsetX, offsetY: local.offsetY, visible: local.visible };
 }
 
 let lastFrameTime = performance.now();
@@ -165,8 +167,8 @@ function loop(now: number): void {
       advance,
       visualPunch,
       visualEvent,
-      leftGlove: toGloveVisual(latestPose?.leftWrist),
-      rightGlove: toGloveVisual(latestPose?.rightWrist),
+      leftGlove: toGloveVisual(latestPose, latestPose?.leftWrist),
+      rightGlove: toGloveVisual(latestPose, latestPose?.rightWrist),
       assets,
       nowMs: now,
     });

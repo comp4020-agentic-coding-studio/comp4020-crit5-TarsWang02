@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { createGuardTracker, createMovementTracker, createPunchTracker } from "../src/pose-rules.ts";
+import {
+  createGuardTracker,
+  createMovementTracker,
+  createPunchTracker,
+  toPlayerLocalPoint,
+} from "../src/pose-rules.ts";
 import {
   apartPose,
+  basePose,
   guardPose,
   leanPose,
   leftPunchExtendedPose,
+  point,
   rightPunchExtendedPose,
   rightPunchReadyPose,
 } from "./fixtures/pose-samples.ts";
@@ -111,5 +118,57 @@ describe("createPunchTracker", () => {
     expect(left.update(rightPunchExtendedPose(80), 80)).toBeNull();
 
     expect(left.update(leftPunchExtendedPose(160), 160)).toBe("strike");
+  });
+});
+
+describe("toPlayerLocalPoint", () => {
+  it("expresses a wrist as an offset from the shoulder midpoint in shoulder-width units", () => {
+    // basePose: shoulders at (0.4, 0.3)/(0.6, 0.3) -> midpoint (0.5, 0.3),
+    // shoulder width 0.2. Right wrist at (0.58, 0.32) is 0.4 widths right and
+    // 0.1 widths below the shoulder line.
+    const sample = basePose();
+    const local = toPlayerLocalPoint(sample, sample.rightWrist);
+    expect(local.offsetX).toBeCloseTo(0.4, 5);
+    expect(local.offsetY).toBeCloseTo(0.1, 5);
+    expect(local.visible).toBe(true);
+  });
+
+  it("is independent of where the player stands or how large they appear in frame", () => {
+    // Same pose shifted and rescaled within the camera frame must yield the
+    // same player-local offset — this is what lets the renderer place the
+    // glove on the player's sprite instead of at a raw camera-frame fraction.
+    // Both poses place the right wrist at the same (0.5, 0.3) shoulder-width
+    // offset from the shoulder midpoint; only position and scale differ.
+    const nearCorner = basePose({
+      leftShoulder: point(0.05, 0.05),
+      rightShoulder: point(0.15, 0.05),
+      rightWrist: point(0.15, 0.08),
+    });
+    const centered = basePose({
+      leftShoulder: point(0.4, 0.5),
+      rightShoulder: point(0.6, 0.5),
+      rightWrist: point(0.6, 0.56),
+    });
+
+    const a = toPlayerLocalPoint(nearCorner, nearCorner.rightWrist);
+    const b = toPlayerLocalPoint(centered, centered.rightWrist);
+    expect(a.offsetX).toBeCloseTo(b.offsetX, 5);
+    expect(a.offsetY).toBeCloseTo(b.offsetY, 5);
+  });
+
+  it("reports not visible when the landmark itself has low confidence", () => {
+    const sample = basePose();
+    const local = toPlayerLocalPoint(sample, { ...sample.rightWrist, visibility: 0.1 });
+    expect(local.visible).toBe(false);
+  });
+
+  it("reports not visible when shoulder tracking is unreliable, even if the wrist looks confident", () => {
+    const sample = basePose({
+      leftShoulder: point(0.4, 0.3, 0),
+    });
+    const local = toPlayerLocalPoint(sample, sample.rightWrist);
+    expect(local.visible).toBe(false);
+    expect(local.offsetX).toBe(0);
+    expect(local.offsetY).toBe(0);
   });
 });

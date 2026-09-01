@@ -6,8 +6,12 @@ import { LUNGE_IMPACT_WINDOW_MS, type GameState, type RoundEvent, type RoundResu
 import type { Side } from "./types.ts";
 
 export interface GloveVisual {
-  readonly x: number;
-  readonly y: number;
+  // Offset from the player's shoulder midpoint, in shoulder-width units
+  // (see pose-rules.ts `toPlayerLocalPoint`). Mapped onto the player robot's
+  // current on-screen upper body by `playerUpperBodyAnchor`, not onto raw
+  // canvas fractions, so the glove tracks the sprite as it advances/retreats.
+  readonly offsetX: number;
+  readonly offsetY: number;
   readonly visible: boolean;
 }
 
@@ -50,6 +54,44 @@ const OPPONENT_FRAMES = {
 
 const FIGHTER_Y = 0.635;
 const RECOIL_MS = 220;
+
+const PLAYER_SPRITE_HEIGHT_FRACTION_PORTRAIT = 0.44;
+const PLAYER_SPRITE_HEIGHT_FRACTION_LANDSCAPE = 0.59;
+// Matches drawAtlasFrame's `y - targetHeight * 0.64` placement, i.e. how far
+// down from the sprite's top edge the fighterY anchor point sits.
+const PLAYER_SPRITE_ANCHOR_FROM_TOP = 0.64;
+// Where the shoulder line sits within the sprite, and the shoulder width as a
+// fraction of sprite height — starting values for the current placeholder
+// atlas, to retune once real play/art reveals better proportions.
+const PLAYER_SHOULDER_LINE_FROM_TOP = 0.24;
+const PLAYER_SHOULDER_WIDTH_FRACTION = 0.3;
+
+export interface PlayerUpperBodyAnchor {
+  readonly x: number;
+  readonly y: number;
+  readonly scale: number; // pixels per shoulder-width unit
+}
+
+function playerSpriteHeightFraction(portrait: boolean): number {
+  return portrait ? PLAYER_SPRITE_HEIGHT_FRACTION_PORTRAIT : PLAYER_SPRITE_HEIGHT_FRACTION_LANDSCAPE;
+}
+
+// Maps the player's shoulder midpoint onto wherever the player robot is
+// currently drawn on stage (it moves as the player advances/retreats), so
+// glove/shield visuals track the sprite instead of raw camera-frame space.
+export function playerUpperBodyAnchor(
+  playerX: number,
+  fighterY: number,
+  stageHeight: number,
+  portrait: boolean,
+): PlayerUpperBodyAnchor {
+  const spriteHeight = stageHeight * playerSpriteHeightFraction(portrait);
+  return {
+    x: playerX,
+    y: fighterY - spriteHeight * (PLAYER_SPRITE_ANCHOR_FROM_TOP - PLAYER_SHOULDER_LINE_FROM_TOP),
+    scale: spriteHeight * PLAYER_SHOULDER_WIDTH_FRACTION,
+  };
+}
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -238,6 +280,7 @@ function drawGuardShield(
   right: GloveVisual | null,
   active: boolean,
   strength: number,
+  anchor: PlayerUpperBodyAnchor,
   width: number,
   height: number,
 ): void {
@@ -246,8 +289,8 @@ function drawGuardShield(
   const radius = Math.max(width, height) * 0.025;
 
   for (const [index, glove] of gloves.entries()) {
-    const x = glove.x * width;
-    const y = glove.y * height;
+    const x = anchor.x + glove.offsetX * anchor.scale;
+    const y = anchor.y + glove.offsetY * anchor.scale;
     ctx.save();
     ctx.lineWidth = Math.max(2, height * 0.004);
     ctx.strokeStyle = active
@@ -394,7 +437,15 @@ export function renderStage(
   drawGroundShadow(ctx, playerX, width, height, 0.8);
   drawGroundShadow(ctx, opponentX, width, height, 0.92);
 
-  const playerDrawn = drawAtlasFrame(ctx, assets?.player, playerFrame(state), playerX, fighterY, height, portrait ? 0.44 : 0.59);
+  const playerDrawn = drawAtlasFrame(
+    ctx,
+    assets?.player,
+    playerFrame(state),
+    playerX,
+    fighterY,
+    height,
+    playerSpriteHeightFraction(portrait),
+  );
   if (!playerDrawn) {
     drawFighterFallback(ctx, playerX, fighterY, "#cfe8ff", height, state.visualEvent === "guardMiss");
   }
@@ -415,7 +466,8 @@ export function renderStage(
   drawVisorDamage(ctx, assets?.visorFractures, game.counters, opponentX, height);
   if (game.phase === "opening" && game.openSide) drawOpening(ctx, opponentX, fighterY, game.openSide, width, height);
 
-  drawGuardShield(ctx, state.leftGlove, state.rightGlove, state.guardActive, clamp01(state.guardStrength), width, height);
+  const playerAnchor = playerUpperBodyAnchor(playerX, fighterY, height, portrait);
+  drawGuardShield(ctx, state.leftGlove, state.rightGlove, state.guardActive, clamp01(state.guardStrength), playerAnchor, width, height);
   drawRain(ctx, width, height, state.nowMs);
   drawImpactLight(ctx, width, height, state.visualEvent);
   drawHud(ctx, width, height, game);

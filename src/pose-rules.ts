@@ -49,6 +49,34 @@ export function hasReliableTracking(sample: PoseSample): boolean {
   );
 }
 
+// --- Player-local point conversion ------------------------------------------
+
+export interface PlayerLocalPoint {
+  // Offset from the shoulder midpoint, in shoulder-width units. Independent
+  // of the player's position or scale within the camera frame, so it can be
+  // remapped onto wherever the player's robot is actually drawn on stage
+  // rather than onto raw camera-frame coordinates.
+  readonly offsetX: number;
+  readonly offsetY: number;
+  readonly visible: boolean;
+}
+
+// Converts a raw landmark into player-local coordinates: an offset from the
+// shoulder midpoint measured in shoulder widths. Pure geometry — the caller
+// (renderer) decides how to map this onto the player's on-screen sprite.
+export function toPlayerLocalPoint(sample: PoseSample, landmark: LandmarkPoint): PlayerLocalPoint {
+  if (!hasReliableTracking(sample)) {
+    return { offsetX: 0, offsetY: 0, visible: false };
+  }
+  const width = shoulderWidth(sample);
+  const shoulderMid = midpoint(sample.leftShoulder, sample.rightShoulder);
+  return {
+    offsetX: (landmark.x - shoulderMid.x) / width,
+    offsetY: (landmark.y - shoulderMid.y) / width,
+    visible: isVisible(landmark),
+  };
+}
+
 // --- Movement -------------------------------------------------------------
 
 const MOVEMENT_DEAD_ZONE = 0.1; // shoulder widths
