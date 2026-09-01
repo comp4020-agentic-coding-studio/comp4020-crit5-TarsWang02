@@ -533,10 +533,10 @@ export function renderStage(
 ): void {
   const { game, assets } = state;
   const portrait = width / height < 0.9;
-  const playerEngagedX = portrait ? 0.48 : 0.47;
+  const playerEngagedX = portrait ? 0.52 : 0.51;
   const playerRetreatX = portrait ? 0.29 : 0.18;
   const opponentMarkX = portrait ? 0.65 : 0.7;
-  const opponentLungeX = portrait ? 0.53 : 0.48;
+  const opponentLungeX = portrait ? 0.58 : 0.56;
 
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, width, height);
