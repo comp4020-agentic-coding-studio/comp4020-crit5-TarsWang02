@@ -69,9 +69,14 @@ void loadAssetSet().then((loaded) => {
   assets = loaded;
 });
 
+const CAMERA_FAILURE_STATES = new Set<CameraState>(["cameraDenied", "cameraError", "modelError", "streamEnded"]);
+
 function onStateChange(state: CameraState): void {
   status.textContent = STATUS_COPY[state];
   trackingOk = state === "tracking";
+  // A failed start must not strand the player behind a hidden aperture with
+  // no way to retry — cameraStarted only means "camera actually running".
+  if (CAMERA_FAILURE_STATES.has(state)) cameraStarted = false;
   updateApertureVisibility();
 }
 
